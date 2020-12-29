@@ -1,0 +1,45 @@
+---
+- hosts: instance
+  gather_facts: true
+  become: yes
+  vars_files:
+    - vars.yaml
+  tasks:
+    - name: Install NGINX Package
+      apt: name={{ item }} update_cache=yes state=latest
+      loop: [ 'nginx' ]
+    - name: Check if Website Folder Exists
+      stat: 
+        path: /var/www/website
+      register: web_folder_exists
+    - name: Create a directory if it does not exist
+      file:
+        path: /var/www/website
+        state: directory
+        mode: '0755'
+      when: web_folder_exists.stat.exists == False
+    - name: Sets Website file
+      template:
+        src: "templates/website.html.j2"
+        dest: "/var/www/website.html"
+      notify: Reload Nginx
+    - name: Sets Website vhost
+      template:
+        src: "templates/default.j2"
+        dest: "/etc/nginx/sites-available/default"
+      notify: Reload Nginx
+    - name: Enables Website site
+      file:
+        src: "/etc/nginx/sites-available/default"
+        dest: "/etc/nginx/sites-enabled/default"
+        state: link
+      notify: Reload Nginx
+  handlers:
+    - name: Reload Nginx
+      service:
+        name: nginx
+        state: reloaded
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
